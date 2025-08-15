@@ -1,12 +1,13 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import pandas as pd
 from pathlib import Path
-from fastapi.middleware.cors import CORSMiddleware
+from src import rag_api  # Import router RAG
 
 # ===================
-# Load model + scaler + feature columns
+# Load model
 # ===================
 MODEL_DIR = Path(__file__).parent / "models"
 model = joblib.load(MODEL_DIR / "xgb_diabetes_model.joblib")
@@ -25,7 +26,7 @@ app.add_middleware(
 )
 
 # ===================
-# Request schema
+# Predict schema
 # ===================
 class PatientData(BaseModel):
     year: int
@@ -49,7 +50,6 @@ class PatientData(BaseModel):
 # ===================
 @app.post("/predict")
 def predict(data: PatientData):
-    # Convert sang DataFrame
     df = pd.DataFrame([data.dict()])
 
     # Chuẩn hóa chữ thường
@@ -77,16 +77,8 @@ def predict(data: PatientData):
         "prediction": pred_label,
         "probability": pred_prob
     }
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from src import rag_api  # import router mới
 
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(rag_api.router)  # Thêm RAG endpoint
+# ===================
+# Include RAG API
+# ===================
+app.include_router(rag_api.router)
