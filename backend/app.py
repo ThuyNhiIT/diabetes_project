@@ -77,3 +77,16 @@ def predict(data: PatientData):
         "prediction": pred_label,
         "probability": pred_prob
     }
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from src import rag_api  # import router mới
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(rag_api.router)  # Thêm RAG endpoint
