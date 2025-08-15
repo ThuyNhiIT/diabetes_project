@@ -1,43 +1,42 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import pandas as pd
 import joblib
+import pandas as pd
 from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
 
-# Load model, scaler, feature columns
-MODEL_DIR = Path("models")
+# ===================
+# Load model + scaler + feature columns
+# ===================
+MODEL_DIR = Path(__file__).parent / "models"
 model = joblib.load(MODEL_DIR / "xgb_diabetes_model.joblib")
 scaler = joblib.load(MODEL_DIR / "scaler.joblib")
 feature_columns = joblib.load(MODEL_DIR / "feature_columns.joblib")
 
+# ===================
+# FastAPI init
+# ===================
 app = FastAPI()
-
-# --- Cấu hình CORS ---
-origins = [
-    "http://localhost:3000",  # frontend React
-    "http://127.0.0.1:3000"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      # Cho phép các domain này gọi API
-    allow_credentials=True,
-    allow_methods=["*"],        # Cho phép GET, POST,...
-    allow_headers=["*"],        # Cho phép mọi header
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Cấu trúc dữ liệu bệnh nhân
-class Patient(BaseModel):
+# ===================
+# Request schema
+# ===================
+class PatientData(BaseModel):
     year: int
     gender: str
     age: int
     location: str
-    race_AfricanAmerican: int = 0
-    race_Asian: int = 0
-    race_Caucasian: int = 0
-    race_Hispanic: int = 0
-    race_Other: int = 0
+    race_AfricanAmerican: int
+    race_Asian: int
+    race_Caucasian: int
+    race_Hispanic: int
+    race_Other: int
     hypertension: int
     heart_disease: int
     smoking_history: str
@@ -45,26 +44,36 @@ class Patient(BaseModel):
     hbA1c_level: float
     blood_glucose_level: float
 
+# ===================
+# Predict endpoint
+# ===================
 @app.post("/predict")
-def predict_diabetes(patient: Patient):
-    data_new = pd.DataFrame([patient.dict()])
+def predict(data: PatientData):
+    # Convert sang DataFrame
+    df = pd.DataFrame([data.dict()])
 
-    # Xử lý categorical giống training
-    for col in ['gender', 'location', 'smoking_history']:
-        data_new[col] = data_new[col].astype(str).str.strip().str.lower()
-    data_new = pd.get_dummies(data_new, columns=['gender','location','smoking_history'], dummy_na=True)
+    # Chuẩn hóa chữ thường
+    categorical_cols = ['gender', 'location', 'smoking_history']
+    for col in categorical_cols:
+        df[col] = df[col].astype(str).str.strip().str.lower()
 
-    # Bổ sung cột thiếu
+    # One-hot encode
+    df = pd.get_dummies(df, columns=categorical_cols, dummy_na=True)
+
+    # Thêm cột thiếu & sắp xếp đúng thứ tự
     for col in feature_columns:
-        if col not in data_new.columns:
-            data_new[col] = 0
-    data_new = data_new[feature_columns]
+        if col not in df.columns:
+            df[col] = 0
+    df = df[feature_columns]
 
-    # Chuẩn hóa
-    X_new_scaled = scaler.transform(data_new)
+    # Scale
+    X_scaled = scaler.transform(df)
 
-    # Dự đoán
-    pred_label = int(model.predict(X_new_scaled)[0])
-    pred_prob = float(model.predict_proba(X_new_scaled)[0][1])
+    # Predict
+    pred_label = int(model.predict(X_scaled)[0])
+    pred_prob = float(model.predict_proba(X_scaled)[:, 1][0])
 
-    return {"prediction": pred_label, "probability": pred_prob}
+    return {
+        "prediction": pred_label,
+        "probability": pred_prob
+    }
