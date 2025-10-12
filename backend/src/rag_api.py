@@ -23,7 +23,7 @@ if not OPENAI_API_KEY:
 # ===========================
 # Config model
 # ===========================
-MODEL_NAME = "gpt-3.5-turbo"  # hoặc gpt-4
+MODEL_NAME = "gpt-3.5-turbo"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 # ===========================
@@ -49,13 +49,20 @@ except Exception as e:
     print(f"❌ Lỗi khi load FAISS index: {e}")
 
 # ===========================
-# Prompt template
+# Prompt Template thông minh hơn
 # ===========================
 prompt_template = """
-Bạn là một chuyên gia y tế về bệnh tiểu đường.
-Dựa vào thông tin trong phần "Ngữ cảnh" bên dưới, hãy trả lời câu hỏi của người dùng:
-- Trả lời chi tiết, rõ ràng, đầy đủ.
-- Nếu không chắc chắn hoặc thông tin không có, hãy nói rõ.
+Bạn là một chuyên gia y tế về **bệnh tiểu đường** (type 1, type 2, thai kỳ, biến chứng, phòng ngừa, dinh dưỡng).
+Dựa trên phần "Ngữ cảnh" bên dưới, hãy trả lời **chi tiết, chính xác, dễ hiểu**.
+
+Nếu câu hỏi của người dùng **không liên quan đến bệnh tiểu đường**, hãy trả lời:
+"Xin lỗi, hệ thống hiện tại chỉ hỗ trợ các câu hỏi liên quan đến bệnh tiểu đường. 
+Vui lòng đặt câu hỏi về nguyên nhân, triệu chứng, biến chứng, phòng ngừa, điều trị hoặc chế độ ăn của bệnh tiểu đường."
+
+Sau khi trả lời xong các câu hỏi liên quan đến bệnh tiểu đường, hãy kết thúc bằng câu:
+"👉 Đây là hệ thống khuyến nghị, không thay thế tư vấn của bác sĩ chuyên khoa."
+
+---
 
 Ngữ cảnh:
 {context}
@@ -76,7 +83,7 @@ prompt = PromptTemplate(
 if vectorstore:
     llm = ChatOpenAI(
         model=MODEL_NAME,
-        temperature=0,
+        temperature=0.3,
         api_key=OPENAI_API_KEY
     )
     qa_chain = RetrievalQA.from_chain_type(
@@ -100,13 +107,22 @@ async def ask_question(req: QuestionRequest):
     if not qa_chain:
         raise HTTPException(status_code=500, detail="FAISS index chưa sẵn sàng.")
 
-    # Ưu tiên lấy 'question', fallback sang 'query'
     user_question = req.question or req.query
     if not user_question:
         raise HTTPException(status_code=422, detail="Cần truyền 'question' hoặc 'query'.")
 
     try:
+        # Gọi LLM với context retrieval
         result = qa_chain.invoke({"query": user_question})
-        return {"answer": result.get("result", "")}
+        answer = result.get("result", "").strip()
+
+        # Nếu model không trả lời gì, fallback gợi ý người dùng
+        if not answer:
+            answer = (
+                "Xin lỗi, tôi không tìm thấy thông tin liên quan trong cơ sở dữ liệu. "
+                "Vui lòng hỏi về bệnh tiểu đường hoặc các chủ đề liên quan như triệu chứng, phòng ngừa, điều trị, hoặc chế độ ăn."
+            )
+
+        return {"answer": answer}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý câu hỏi: {e}")

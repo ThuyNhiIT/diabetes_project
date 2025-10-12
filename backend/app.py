@@ -71,11 +71,24 @@ def predict(data: PatientData):
 
     # Predict
     pred_label = int(model.predict(X_scaled)[0])
-    pred_prob = float(model.predict_proba(X_scaled)[:, 1][0])
+    pred_prob = float(model.predict_proba(X_scaled)[:, 1][0]) * 100  # thành %
+
+    # ---------------------------
+    # Diễn giải kết quả dựa theo xác suất
+    # ---------------------------
+    if pred_prob < 30:
+        diagnosis = "🟢 Khả năng mắc bệnh tiểu đường thấp."
+    elif 30 <= pred_prob < 60:
+        diagnosis = "⚠️ Cảnh báo: Có dấu hiệu tiền tiểu đường, cần kiểm tra định kỳ."
+    elif 60 <= pred_prob < 80:
+        diagnosis = "🟠 Có khả năng bị tiểu đường type 2."
+    else:
+        diagnosis = "🔴 Cảnh báo cao: Có thể bị tiểu đường type 1."
 
     return {
         "prediction": pred_label,
-        "probability": pred_prob
+        "probability": round(pred_prob, 2),
+        "diagnosis": diagnosis
     }
 
 # ===================

@@ -39,6 +39,8 @@ data_new = pd.DataFrame([{
     'blood_glucose_level': 140
 }])
 
+print("\n📊 New data to predict:")
+print(data_new)
 
 # ----------------------------
 # Xử lý categorical giống train
@@ -67,19 +69,33 @@ X_new_scaled = scaler.transform(data_new)
 # Dự đoán
 # ----------------------------
 pred_label = model.predict(X_new_scaled)
-pred_prob = model.predict_proba(X_new_scaled)[:, 1]
+pred_prob = model.predict_proba(X_new_scaled)[:, 1] * 100 
+
+# ----------------------------
+# Chẩn đoán theo xác suất
+# ----------------------------
+def interpret_diabetes(prob):
+    if prob < 30:
+        return "Khả năng mắc bệnh tiểu đường thấp 🟢"
+    elif 30 <= prob < 60:
+        return "Cảnh báo: Có dấu hiệu tiền tiểu đường ⚠️"
+    elif 60 <= prob < 80:
+        return "Cảnh báo: Có khả năng bị tiểu đường type 2 🟠"
+    else:
+        return "Cảnh báo cao: Có thể bị tiểu đường type 1 🔴"
+
+data_new['Prediction'] = pred_label
+data_new['Probability(%)'] = pred_prob.round(2)
+data_new['Diagnosis'] = data_new['Probability(%)'].apply(interpret_diabetes)
 
 # ----------------------------
 # Hiển thị kết quả
 # ----------------------------
-data_new['Prediction'] = pred_label
-data_new['Probability(%)'] = pred_prob * 100
-
 print("\n📊 Prediction Result:")
-print(data_new[['Prediction', 'Probability(%)']])
+print(data_new[['Prediction', 'Probability(%)', 'Diagnosis']])
 
 # ----------------------------
-# Nếu muốn, lưu kết quả ra CSV
+# Lưu kết quả ra CSV
 # ----------------------------
 OUTPUT_PATH = Path(__file__).parents[1] / "output_predictions.csv"
 data_new.to_csv(OUTPUT_PATH, index=False)
