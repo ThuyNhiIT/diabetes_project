@@ -17,7 +17,7 @@ INDEX_PATH = BASE_DIR / "models" / "diabetes_faiss_index"
 
 # Load FAISS index đã tạo
 print("📂 Đang load FAISS index từ:", INDEX_PATH)
-vectorstore = FAISS.load_local(str(INDEX_PATH), embeddings=None, allow_dangerous_deserialization=True)
+vectorstore = FAISS.load_local(str(INDEX_PATH), embeddings=None)
 
 # Tạo retriever + LLM
 retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3})

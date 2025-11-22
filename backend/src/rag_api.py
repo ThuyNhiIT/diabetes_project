@@ -41,8 +41,7 @@ try:
     embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=OPENAI_API_KEY)
     vectorstore = FAISS.load_local(
         str(FAISS_INDEX_PATH),
-        embeddings,
-        allow_dangerous_deserialization=True
+        embeddings
     )
     print("✅ FAISS index load thành công!")
 except Exception as e:
