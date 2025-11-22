@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.embeddings import OpenAIEmbeddings
 
 # Load biến môi trường
 BASE_DIR = Path(__file__).parents[1]
