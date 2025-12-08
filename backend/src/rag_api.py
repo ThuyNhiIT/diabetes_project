@@ -1,11 +1,10 @@
-# backend/src/rag_api.py
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
@@ -40,8 +39,9 @@ qa_chain = None
 try:
     embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=OPENAI_API_KEY)
     vectorstore = FAISS.load_local(
-        str(FAISS_INDEX_PATH),
-        embeddings
+    str(FAISS_INDEX_PATH),
+    embeddings,
+    allow_dangerous_deserialization=True
     )
     print("✅ FAISS index load thành công!")
 except Exception as e:
@@ -51,17 +51,42 @@ except Exception as e:
 # Prompt Template thông minh hơn
 # ===========================
 prompt_template = """
-Bạn là một chuyên gia y tế về **bệnh tiểu đường** (type 1, type 2, thai kỳ, biến chứng, phòng ngừa, dinh dưỡng).
-Dựa trên phần "Ngữ cảnh" bên dưới, hãy trả lời **chi tiết, chính xác, dễ hiểu**.
+Bạn là một **bác sĩ chuyên khoa nội tiết – tiểu đường** với 15 năm kinh nghiệm, đang tư vấn cho bệnh nhân thông qua hệ thống y tế thông minh.
 
-Nếu câu hỏi của người dùng **không liên quan đến bệnh tiểu đường**, hãy trả lời:
-"Xin lỗi, hệ thống hiện tại chỉ hỗ trợ các câu hỏi liên quan đến bệnh tiểu đường. 
-Vui lòng đặt câu hỏi về nguyên nhân, triệu chứng, biến chứng, phòng ngừa, điều trị hoặc chế độ ăn của bệnh tiểu đường."
+✅ Nhiệm vụ chính:
+- Ưu tiên sử dụng **Ngữ cảnh được cung cấp**
+- Nếu ngữ cảnh **chưa đủ**, bạn được phép dùng **kiến thức y khoa tổng quát chính xác**
+- Trả lời **đầy đủ – dễ hiểu – logic – gần gũi với người bệnh**
+- Nếu người dùng hỏi **nhiều ý trong một câu** (ví dụ: triệu chứng + thuốc + ăn uống), bạn phải **chia từng ý và trả lời rõ ràng từng phần**
 
-Sau khi trả lời xong các câu hỏi liên quan đến bệnh tiểu đường, hãy kết thúc bằng câu:
+✅ Trường hợp câu hỏi liên quan đến:
+- **Triệu chứng**
+- **Nguyên nhân**
+- **Biến chứng**
+- **Thuốc**
+- **Chế độ ăn**
+- **Vận động – lối sống**
+- **Phòng ngừa**
+→ Hãy trả lời **chi tiết, dễ hiểu, có ví dụ minh họa nếu cần**
+
+✅ Trường hợp người dùng chỉ:
+- Chào hỏi: "xin chào", "chào bác sĩ", "hello", "hi"
+- Cảm ơn: "cảm ơn", "thanks"
+- Hỏi xã giao: "bạn là ai", "bạn làm được gì"
+→ Hãy trả lời **lịch sự – thân thiện – ngắn gọn – đúng vai trò hệ thống y tế**
+→ ❗ **KHÔNG cần thêm câu khuyến nghị y tế ở cuối trong trường hợp này**
+
+Ví dụ:
+- "Xin chào, tôi có thể hỗ trợ bạn các vấn đề liên quan đến bệnh tiểu đường."
+- "Rất vui được hỗ trợ bạn!"
+
+❌ Nếu câu hỏi **HOÀN TOÀN KHÔNG LIÊN QUAN đến bệnh tiểu đường**, hãy trả lời đúng mẫu sau:
+"Xin lỗi, hệ thống hiện tại chỉ hỗ trợ các câu hỏi liên quan đến bệnh tiểu đường."
+
+⚠️ Với TẤT CẢ các câu hỏi chuyên môn y tế, luôn kết thúc bằng đúng dòng sau:
 "👉 Đây là hệ thống khuyến nghị, không thay thế tư vấn của bác sĩ chuyên khoa."
 
----
+----------------------------------
 
 Ngữ cảnh:
 {context}
@@ -82,16 +107,19 @@ prompt = PromptTemplate(
 if vectorstore:
     llm = ChatOpenAI(
         model=MODEL_NAME,
-        temperature=0.3,
+        temperature=0.6,  
         api_key=OPENAI_API_KEY
     )
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
-        retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
+        retriever=vectorstore.as_retriever(
+            search_type="mmr",       
+            search_kwargs={"k": 6}     
+        ),
         chain_type="stuff",
-        chain_type_kwargs={"prompt": prompt}
+        chain_type_kwargs={"prompt": prompt},
+        return_source_documents=False
     )
-
 # ===========================
 # API Router
 # ===========================
